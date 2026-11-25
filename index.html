@@ -81,6 +81,8 @@ body.editing .tile:not(.add){outline:2px dashed var(--fg);outline-offset:3px;bor
   <div class="stripe" aria-hidden="true"><i style="background:#E51B2A"></i><i style="background:#4897D3"></i><i style="background:#50BBB4"></i><i style="background:#F6A023"></i></div>
   <div id="grid" class="grid"></div>
   <div class="foot">
+    <button id="persona" type="button">Personalizar mi fila</button>
+    <button id="reset" type="button" hidden>Volver a la fila del local</button>
     <button id="toggleEdit" type="button" hidden>Editar accesos</button>
     <button id="login" type="button" hidden>Entrar como dueño</button>
     <span id="msg" role="status"></span>
@@ -92,7 +94,7 @@ body.editing .tile:not(.add){outline:2px dashed var(--fg);outline-offset:3px;bor
     <label>Nombre <input id="fName" required maxlength="40"></label>
     <label>Link <input id="fUrl" placeholder="https://…"></label>
     <label>Aclaración corta (opcional) <input id="fDesc" maxlength="50"></label>
-    <label>Fila de abajo (opcional, ej: Trello) <input id="fGroup" maxlength="30" placeholder="Vacío = botones grandes de arriba"></label>
+    <label id="fGroupL">Fila de abajo (opcional, ej: Trello) <input id="fGroup" maxlength="30" placeholder="Vacío = botones grandes de arriba"></label>
     <div class="row">
       <button id="del" class="left danger" type="button">Borrar</button>
       <button id="cancel" type="button">Cancelar</button>
@@ -129,30 +131,44 @@ function render(){
   let h=idx.filter(x=>!x.it.g).map(x=>tileHtml(x.it,x.i,false)).join('');
   if(editing())h+=`<button type="button" class="tile add" id="addTile"><b>+ Agregar</b></button>`;
   const groups=[...new Set(accesos.filter(a=>a.g).map(a=>a.g))];
-  for(const g of groups)h+=`<h2 class="ghead">${esc(g)}</h2><div class="grid sub">${idx.filter(x=>x.it.g===g).map(x=>tileHtml(x.it,x.i,true)).join('')}</div>`;
+  if(mine){h+=`<h2 class="ghead">Mi fila</h2><div class="grid sub">${mine.map((it,i)=>pmode?`<button type="button" class="tile sm" style="--tc:#1F5FB0;--ti:#fff" data-p="${i}">${icon('board')}<b>${esc(it.n)}</b></button>`:tileHtml({...it,g:'x'},-1,true)).join('')}${pmode?'<button type="button" class="tile sm add" data-p="new"><b>+ Agregar</b></button>':''}</div>`}
+  else for(const g of groups)h+=`<h2 class="ghead">${esc(g)}</h2><div class="grid sub">${idx.filter(x=>x.it.g===g).map(x=>tileHtml(x.it,x.i,true)).join('')}</div>`;
   $('grid').innerHTML=h;
   $('toggleEdit').hidden=!canEdit;
   if(!canEdit&&editing()){document.body.classList.remove('editing')}
 }
-function openDlg(i){editIdx=i;const it=i==null?{n:'',u:'',d:'',g:''}:accesos[i];
+var openDlg=function(i){editIdx=i;const it=i==null?{n:'',u:'',d:'',g:''}:accesos[i];
   $('dlgTitle').textContent=i==null?'Agregar acceso':'Editar acceso';
   $('fName').value=it.n;$('fUrl').value=it.u;$('fDesc').value=it.d;$('fGroup').value=it.g||'';$('del').hidden=i==null;$('dlg').showModal()}
-$('grid').addEventListener('click',e=>{if(!editing())return;const b=e.target.closest('button');if(!b)return;
+$('grid').addEventListener('click',e=>{const pb=e.target.closest('button[data-p]');if(pb&&pmode){openP(pb.dataset.p==='new'?null:+pb.dataset.p);return}if(!editing())return;const b=e.target.closest('button');if(!b)return;
   if(b.id==='addTile')openDlg(null);else if(b.dataset.i!=null)openDlg(+b.dataset.i)});
 $('cancel').onclick=()=>$('dlg').close();
 let delArmed=false;
 $('del').onclick=()=>{if(!delArmed){delArmed=true;$('del').textContent='¿Seguro? Tocá de nuevo';return}
+  if(pedit){mine.splice(editIdx,1);saveMine();$('dlg').close();render();return}
   accesos.splice(editIdx,1);$('dlg').close();render();save()};
 $('dlg').addEventListener('close',()=>{delArmed=false;$('del').textContent='Borrar'});
 $('f').addEventListener('submit',e=>{e.preventDefault();
   let u=$('fUrl').value.trim();if(u&&!/^https?:\/\//i.test(u)&&!/^[a-z0-9_-]+\/?$/i.test(u))u='https://'+u;u=u.replace(/^http:\/\//i,'https://');
   const it={n:$('fName').value.trim(),u,d:$('fDesc').value.trim(),g:$('fGroup').value.trim()};if(!it.n)return;
+  if(pedit){delete it.g;if(editIdx==null)mine.push(it);else mine[editIdx]=it;saveMine();$('dlg').close();render();return}
   if(editIdx==null)accesos.push(it);else accesos[editIdx]=it;$('dlg').close();render();save()});
+// Fila de abajo personal: cada compu o celular puede armar la suya (se guarda en ese navegador)
+const MKEY='panel-mi-fila';let mine=null,pmode=false,pedit=false;
+try{const v=JSON.parse(localStorage.getItem(MKEY));if(Array.isArray(v))mine=clean(v)}catch(e){}
+function saveMine(){try{if(mine)localStorage.setItem(MKEY,JSON.stringify(mine));else localStorage.removeItem(MKEY)}catch(e){}}
+function openP(i){pedit=true;editIdx=i;const it=i==null?{n:'',u:'',d:''}:mine[i];
+  $('dlgTitle').textContent=i==null?'Agregar a mi fila':'Editar botón';$('fName').value=it.n;$('fUrl').value=it.u;$('fDesc').value=it.d||'';
+  $('fGroupL').hidden=true;$('del').hidden=i==null;$('dlg').showModal()}
+const _openDlg=openDlg;openDlg=function(i){pedit=false;$('fGroupL').hidden=false;_openDlg(i)};
+$('persona').onclick=()=>{if(!pmode){if(!mine)mine=accesos.filter(a=>a.g).map(a=>({n:a.n,u:a.u,d:a.d,g:''}));pmode=true;saveMine()}else pmode=false;
+  $('persona').textContent=pmode?'Listo':'Personalizar mi fila';$('reset').hidden=!pmode;render()};
+$('reset').onclick=()=>{mine=null;saveMine();pmode=false;$('persona').textContent='Personalizar mi fila';$('reset').hidden=true;render()};
 $('toggleEdit').onclick=()=>{document.body.classList.toggle('editing');$('toggleEdit').textContent=editing()?'Listo':'Editar accesos';render()};
 
 // Configuración de Firebase y Gmail del dueño: vienen de config.js (compartido con la calculadora)
 const C=window.FIREBASE_CONFIG||{}, OWNER=(window.OWNER_EMAIL||'').toLowerCase();
-const DEFAULT=[{"n": "WhatsApp", "u": "https://web.whatsapp.com", "d": "", "g": ""}, {"n": "iDuo", "u": "https://www.iduo.com.ar/Login.html", "d": "", "g": ""}, {"n": "Gestor de reparaciones", "u": "https://gestor-reparaciones-53630.web.app/", "d": "", "g": ""}, {"n": "Mercado Libre", "u": "https://www.mercadolibre.com.ar", "d": "", "g": ""}, {"n": "Calculadora de cobro", "u": "calculadora/", "d": "", "g": ""}, {"n": "Administrador de la página", "u": "https://expressgame4.mitiendanube.com/admin/dashboard", "d": "Pedidos de la página", "g": ""}, {"n": "Página web", "u": "https://www.expressgame.com.ar", "d": "", "g": ""}, {"n": "Express Game", "u": "https://trello.com/b/HNzeqid4/express-game", "d": "", "g": "Trello"}, {"n": "Juegos de PS2", "u": "https://trello.com/b/nPfK0ANQ/juegos-de-ps2", "d": "", "g": "Trello"}, {"n": "Faltante mercadería", "u": "https://trello.com/b/JvbZEhJj/faltante-mercaderia", "d": "", "g": "Trello"}, {"n": "Reparaciones", "u": "https://trello.com/b/8JL9F9tt/reparaciones", "d": "", "g": "Trello"}, {"n": "Datos útiles reparaciones", "u": "https://trello.com/b/hdTUjz3D/datos-utiles-reparaciones", "d": "", "g": "Trello"}, {"n": "Tienda Nube", "u": "https://trello.com/b/I5sIfQqH/tienda-nube", "d": "", "g": "Trello"}];
+const DEFAULT=[{"n": "iDuo", "u": "https://www.iduo.com.ar/Login.html", "d": "", "g": ""}, {"n": "WhatsApp", "u": "https://web.whatsapp.com", "d": "", "g": ""}, {"n": "Gestor de reparaciones", "u": "https://gestor-reparaciones-53630.web.app/", "d": "", "g": ""}, {"n": "Mercado Libre", "u": "https://www.mercadolibre.com.ar", "d": "", "g": ""}, {"n": "Calculadora de cobro", "u": "calculadora/", "d": "", "g": ""}, {"n": "Administrador de la página", "u": "https://expressgame4.mitiendanube.com/admin/dashboard", "d": "Pedidos de la página", "g": ""}, {"n": "Página web", "u": "https://www.expressgame.com.ar", "d": "", "g": ""}, {"n": "Juegos de PS2", "u": "https://trello.com/b/nPfK0ANQ/juegos-de-ps2", "d": "", "g": "Trello"}, {"n": "Faltante mercadería", "u": "https://trello.com/b/JvbZEhJj/faltante-mercaderia", "d": "", "g": "Trello"}, {"n": "Datos útiles reparaciones", "u": "https://trello.com/b/hdTUjz3D/datos-utiles-reparaciones", "d": "", "g": "Trello"}];
 accesos=clean(DEFAULT);render();
 let db=null,auth=null;
 try{if(C.projectId&&C.projectId!=='COMPLETAR'){firebase.initializeApp(C);db=firebase.firestore();auth=firebase.auth()}}catch(e){db=null}
