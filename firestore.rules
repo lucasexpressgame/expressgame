@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == 'OWNER_EMAIL';
+    }
+    // Calculadora: dólar compartido, lo actualiza cualquiera (con validación)
+    match /dolar/actual {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(['cot', 'cotHist'])
+        && request.resource.data.cot is number
+        && request.resource.data.cot > 0 && request.resource.data.cot < 1000000
+        && (!('cotHist' in request.resource.data) || (request.resource.data.cotHist is list && request.resource.data.cotHist.size() <= 200));
+    }
+    // Calculadora: ajustes (porcentajes, recargos, etc.), solo el dueño
+    match /config/ajustes {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+    // Panel del local
+    match /panel/config { allow read: if true; allow write: if isOwner(); }
+    match /panel/config/encargos/{id} {
+      allow read: if true;
+      allow delete: if isOwner();
+      allow create, update: if request.resource.data.keys().hasOnly(['c','p','s','tot','f','e','ts'])
+        && request.resource.data.p is string && request.resource.data.p.size() > 0 && request.resource.data.p.size() <= 120
+        && request.resource.data.c is string && request.resource.data.c.size() <= 120
+        && request.resource.data.s is number && request.resource.data.tot is number
+        && request.resource.data.f is string && request.resource.data.f.size() <= 10
+        && request.resource.data.e in ['Pendiente','Avisado','Entregado']
+        && request.resource.data.ts is timestamp;
+    }
+    match /panel/config/notas/{id} {
+      allow read: if true;
+      allow delete: if true;
+      allow create: if request.resource.data.keys().hasOnly(['t','ts']) && request.resource.data.t is string
+        && request.resource.data.t.size() > 0 && request.resource.data.t.size() <= 300 && request.resource.data.ts is timestamp;
+    }
+  }
+}
