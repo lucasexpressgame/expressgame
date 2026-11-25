@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Express Game</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 [hidden]{display:none!important}
 /* Layout: una grilla de rectángulos grandes, nada más */
 :root{
   --bg:#f3f4f7; --card:#ffffff; --fg:#1a1d26; --muted:#606778; --line:#dde0e8;
   --accent:#3a4fd8; --accent-soft:#e6e9fb; --warn:#a15c00;
-  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
+  --display:"Inter",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12141b; --card:#1b1e28; --fg:#e9ebf2; --muted:#9aa1b3; --line:#2c303d;
@@ -51,12 +51,27 @@ input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--l
 .row button{font:inherit;font-weight:600;border-radius:8px;padding:9px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
 .row .primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
 .row .danger{color:#c0392b}
+.tile{background:var(--tc,var(--card));color:var(--ti,var(--fg));border:none;gap:10px;min-height:140px;box-shadow:0 2px 0 rgb(0 0 0 / .12)}
+.tile svg{width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tile small{color:inherit;opacity:.85}
+.tile.nolink{opacity:.55;border:none}
+.tile.nolink small{color:inherit}
+.tile.add{background:transparent;color:var(--accent);border:2px dashed var(--line);box-shadow:none}
+a.tile:hover,button.tile:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgb(0 0 0 / .18);border:none}
+body.editing .tile:not(.add){outline:2px dashed var(--fg);outline-offset:3px;border:none}
+.brand{display:flex;flex-direction:column;align-items:center;gap:2px}
+.brand h1{font-family:var(--body);font-weight:800;font-size:1.9rem;letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.brand h1 span{color:#E51B2A}
+.brand p{margin:0;color:var(--muted);font-size:.9rem}
+.stripe{display:flex;justify-content:center;gap:6px}
+.stripe i{width:22px;height:5px;border-radius:3px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Express Game</h1>
+  <div class="brand"><h1>Express <span>Game</span></h1><p>Diversión ilimitada</p></div>
+  <div class="stripe" aria-hidden="true"><i style="background:#E51B2A"></i><i style="background:#4897D3"></i><i style="background:#50BBB4"></i><i style="background:#F6A023"></i></div>
   <div id="grid" class="grid"></div>
   <div class="foot">
     <button id="toggleEdit" type="button" hidden>Editar accesos</button>
@@ -88,12 +103,20 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function safeUrl(u){u=u||'';if(/^https:\/\//i.test(u))return u;if(/^[a-z0-9_-]+\/?$/i.test(u))return u;return ''}
 function clean(v){return (Array.isArray(v)?v:[]).filter(x=>x&&x.n).map(x=>({n:String(x.n),u:String(x.u||''),d:String(x.d||'')}))}
 function say(t){$('msg').textContent=t}
+
+const ICONS={"box": "<path d=\"M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z\"/><path d=\"M3 7.5 12 12l9-4.5M12 12v9\"/>", "calc": "<rect x=\"5\" y=\"2.5\" width=\"14\" height=\"19\" rx=\"2.5\"/><path d=\"M8 6.5h8v3H8zM8.5 13h.01M12 13h.01M15.5 13h.01M8.5 17h.01M12 17h.01M15.5 17h.01\"/>", "wrench": "<path d=\"M14.5 6.5a4 4 0 0 0 5 5L13 18a2.1 2.1 0 1 1-3-3l6.5-6.5a4 4 0 0 0-2-2z\"/><path d=\"M14.5 6.5 17 4l3 3-2.5 2.5\"/>", "globe": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18\"/>", "orders": "<rect x=\"5\" y=\"3.5\" width=\"14\" height=\"18\" rx=\"2\"/><path d=\"M9 3.5h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4\"/>", "cart": "<path d=\"M3 4h2.5l2.2 10.5h10.6L20.5 7H7\"/><circle cx=\"9.5\" cy=\"19\" r=\"1.4\"/><circle cx=\"17\" cy=\"19\" r=\"1.4\"/>", "board": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"3\"/><rect x=\"6.5\" y=\"6.5\" width=\"4\" height=\"10\" rx=\"1\"/><rect x=\"13.5\" y=\"6.5\" width=\"4\" height=\"6\" rx=\"1\"/>", "chat": "<path d=\"M4 20l1.3-3.9A8 8 0 1 1 8 19z\"/><path d=\"M9 9.5c0 3 2.5 5.5 5.5 5.5\"/>", "link": "<path d=\"M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1\"/><path d=\"M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1\"/>"};
+const LOOKS=[[/iduo/i,'#E51B2A','box'],[/calcul/i,'#F6A023','calc'],[/repara|técnic|tecnic/i,'#3FA9A2','wrench'],[/admin|pedido/i,'#2D2A5E','orders'],[/p[aá]gina|web|tienda/i,'#4897D3','globe'],[/mercado ?libre/i,'#FFE14D','cart'],[/trello/i,'#1F5FB0','board'],[/whats/i,'#1FAF5B','chat']];
+const SPARE=['#E51B2A','#4897D3','#3FA9A2','#F6A023','#2D2A5E'];
+function look(n,i){for(const [re,c,ic] of LOOKS)if(re.test(n))return {c,ic};return {c:SPARE[i%SPARE.length],ic:'link'}}
+function ink(c){const n=parseInt(c.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;return (r*299+g*587+b*114)/1000>170?'#1A1837':'#ffffff'}
+function icon(k){return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]||ICONS.link}</svg>`}
 const editing=()=>document.body.classList.contains('editing');
 function render(){
   let h=accesos.map((it,i)=>{const url=safeUrl(it.u),ext=/^https:/.test(url);
-    const inner=`<b>${esc(it.n)}</b>${url?(it.d?`<small>${esc(it.d)}</small>`:''):'<small>Falta el link</small>'}`;
-    if(editing())return `<button type="button" class="tile" data-i="${i}">${inner}</button>`;
-    return url?`<a class="tile" href="${esc(url)}"${ext?' target="_blank" rel="noopener"':''}>${inner}</a>`:`<div class="tile nolink">${inner}</div>`}).join('');
+    const L=look(it.n,i), st=`style="--tc:${L.c};--ti:${ink(L.c)}"`;
+    const inner=`${icon(L.ic)}<b>${esc(it.n)}</b>${url?(it.d?`<small>${esc(it.d)}</small>`:''):'<small>Falta el link</small>'}`;
+    if(editing())return `<button type="button" class="tile" ${st} data-i="${i}">${inner}</button>`;
+    return url?`<a class="tile" ${st} href="${esc(url)}"${ext?' target="_blank" rel="noopener"':''}>${inner}</a>`:`<div class="tile nolink" ${st}>${inner}</div>`}).join('');
   if(editing())h+=`<button type="button" class="tile add" id="addTile"><b>+ Agregar</b></button>`;
   $('grid').innerHTML=h;
   $('toggleEdit').hidden=!canEdit;
@@ -117,7 +140,7 @@ $('toggleEdit').onclick=()=>{document.body.classList.toggle('editing');$('toggle
 
 // Configuración de Firebase y Gmail del dueño: vienen de config.js (compartido con la calculadora)
 const C=window.FIREBASE_CONFIG||{}, OWNER=(window.OWNER_EMAIL||'').toLowerCase();
-const DEFAULT=[{"n": "iDuo", "u": "https://www.iduo.com.ar/Login.html", "d": ""}, {"n": "Calculadora de cobro", "u": "calculadora/", "d": ""}, {"n": "Gestor de reparaciones", "u": "https://gestor-reparaciones-53630.web.app/", "d": ""}, {"n": "Página web", "u": "https://www.expressgame.com.ar", "d": ""}, {"n": "Administrador de la página", "u": "https://expressgame4.mitiendanube.com/admin/dashboard", "d": "Pedidos de la página"}, {"n": "Mercado Libre", "u": "https://www.mercadolibre.com.ar", "d": ""}, {"n": "Trello", "u": "https://trello.com", "d": ""}];
+const DEFAULT=[{"n": "iDuo", "u": "https://www.iduo.com.ar/Login.html", "d": ""}, {"n": "Calculadora de cobro", "u": "calculadora/", "d": ""}, {"n": "Gestor de reparaciones", "u": "https://gestor-reparaciones-53630.web.app/", "d": ""}, {"n": "Página web", "u": "https://www.expressgame.com.ar", "d": ""}, {"n": "Administrador de la página", "u": "https://expressgame4.mitiendanube.com/admin/dashboard", "d": "Pedidos de la página"}, {"n": "Mercado Libre", "u": "https://www.mercadolibre.com.ar", "d": ""}, {"n": "Trello", "u": "https://trello.com", "d": ""}, {"n": "WhatsApp", "u": "https://web.whatsapp.com", "d": ""}];
 accesos=clean(DEFAULT);render();
 let db=null,auth=null;
 try{if(C.projectId&&C.projectId!=='COMPLETAR'){firebase.initializeApp(C);db=firebase.firestore();auth=firebase.auth()}}catch(e){db=null}
