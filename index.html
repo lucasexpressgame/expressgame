@@ -188,7 +188,7 @@ $('reset').onclick=()=>{mine=null;saveMine();pmode=false;$('persona').textConten
 $('toggleEdit').onclick=()=>{document.body.classList.toggle('editing');$('toggleEdit').textContent=editing()?'Listo':'Editar accesos';render()};
 
 // Faltantes: dirección de la app de Google Apps Script que carga la tarjeta en Trello
-const FALTANTE_URL='';
+const FALTANTE_URL='https://script.google.com/macros/s/AKfycbyxVAdfKV_yyQtWbQvL3-f62_i7gyUYHvAK8X8RrKC3cpP1C65om_P2u-ASUG8jfgZdmw/exec';
 if(FALTANTE_URL){$('falt').hidden=false;
   try{const l=localStorage.getItem('faltLista');if(l)$('faltLista').value=l}catch(e){}
   $('falt').addEventListener('submit',async e=>{e.preventDefault();const nombre=$('faltTxt').value.trim();if(!nombre)return;
