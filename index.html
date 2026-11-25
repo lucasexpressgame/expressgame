@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panel del local</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+html{color-scheme:light}body{margin:0}[hidden]{display:none!important}
+
+/* Layout: barra superior con buscador, grilla de accesos agrupada por sección, panel lateral para editar */
+:root{
+  --bg:#f3f4f7; --card:#ffffff; --fg:#1a1d26; --muted:#606778; --line:#dde0e8;
+  --accent:#3a4fd8; --accent-soft:#e6e9fb; --warn:#a15c00; --warn-soft:#fdf0dc;
+  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141b; --card:#1b1e28; --fg:#e9ebf2; --muted:#9aa1b3; --line:#2c303d;
+  --accent:#8c9bff; --accent-soft:#252b4d; --warn:#f0b35a; --warn-soft:#3a2c17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141b; --card:#1b1e28; --fg:#e9ebf2; --muted:#9aa1b3; --line:#2c303d;
+  --accent:#8c9bff; --accent-soft:#252b4d; --warn:#f0b35a; --warn-soft:#3a2c17; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+h1{font-family:var(--display);font-size:1.7rem;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:4px 0 0;font-size:.9rem}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+input:focus,select:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#q{min-width:0;width:240px}
+button{font:inherit;font-weight:600;cursor:pointer;border-radius:8px;padding:9px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+section h2{font-family:var(--display);font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.tile{position:relative;display:flex;gap:12px;align-items:center;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;color:inherit;text-decoration:none;min-width:0;transition:border-color .15s,transform .15s}
+a.tile:hover{border-color:var(--accent);transform:translateY(-1px)}
+.badge{flex:none;width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-family:var(--display);font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.tile .t{min-width:0}
+.tile b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile small{display:block;color:var(--muted);font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile.nolink{border-style:dashed}
+.tile.nolink small{color:var(--warn)}
+.pill{font-size:.7rem;font-weight:600;padding:2px 7px;border-radius:99px;background:var(--warn-soft);color:var(--warn);margin-left:6px;vertical-align:middle}
+.edit{position:absolute;top:6px;right:6px;padding:3px 8px;font-size:.75rem;opacity:0}
+.tile:hover .edit,.edit:focus{opacity:1}
+body.editing .edit{opacity:1}
+.empty{color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);padding:0;width:min(440px,calc(100vw - 32px))}
+dialog::backdrop{background:rgb(0 0 0 / .4)}
+dialog form{display:flex;flex-direction:column;gap:12px;padding:20px}
+dialog h3{font-family:var(--display);margin:0}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted)}
+.row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.row .left{margin-right:auto}
+.danger{color:#c0392b}
+.note{font-size:.85rem;color:var(--muted);max-width:65ch}
+.notas{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+#notas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+#notas li{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+#notas li span{min-width:0;overflow-wrap:anywhere;padding-top:4px}
+#notas li span::before{content:"•";color:var(--accent);margin-right:8px}
+#notas button{padding:3px 9px;font-size:.75rem;flex:none}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs a{padding:10px 14px;color:var(--muted);text-decoration:none;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a[aria-current="page"]{color:var(--accent);border-color:var(--accent)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end}
+.formgrid.one{grid-template-columns:1fr}
+.formgrid.one button{justify-self:start}
+.check{flex-direction:row;align-items:center;gap:8px}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.item .main{min-width:0;flex:1 1 220px}
+.item .main b{display:block}
+.item .main p{margin:4px 0 0;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9rem}
+.item .acts{display:flex;gap:6px;flex-wrap:wrap}
+.item .acts button{padding:5px 10px;font-size:.8rem}
+.num{font-variant-numeric:tabular-nums}
+.estado{border-radius:99px;padding:4px 10px;font-size:.78rem}
+.estado.Pendiente{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.estado.Avisado{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.estado.Entregado{color:var(--muted)}
+.item.done{opacity:.6}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Panel del local</h1>
+      <p class="sub">Todo lo del negocio en un solo link. Los cambios se ven al instante en todas las compus y celulares del local.</p>
+    </div>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Buscar programa…" aria-label="Buscar">
+      <button id="toggleEdit" type="button">Editar</button>
+      <button id="add" class="primary" type="button">+ Agregar</button>
+    </div>
+  </header>
+  <nav class="tabs" aria-label="Secciones">
+    <a href="#inicio" data-tab="inicio">Inicio</a>
+    <a href="#encargos" data-tab="encargos">Encargos y señas</a>
+    <a href="#mensajes" data-tab="mensajes">Mensajes rápidos</a>
+    <a href="#datos" data-tab="datos">Datos del local</a>
+  </nav>
+  <div data-view="inicio" class="wrap" style="gap:28px">
+  <section class="notas">
+    <h2>A tener en cuenta</h2>
+    <ul id="notas"></ul>
+    <form id="notaForm" class="tools"><input id="notaTxt" placeholder="Agregar algo a tener en cuenta…" aria-label="Nueva nota" style="flex:1;min-width:0"><button type="submit">Agregar</button></form>
+  </section>
+  <main id="sections" class="wrap" style="gap:28px"></main>
+  </div>
+  <div data-view="encargos" class="wrap" style="gap:16px" hidden>
+    <p class="note">Productos que un cliente encargó o reservó, con la seña que dejó. Tocá el estado para avanzarlo.</p>
+    <form id="encForm" class="panel formgrid">
+      <label>Cliente <input id="eCli" required placeholder="Solo el nombre (sin teléfono)"></label>
+      <label>Producto <input id="eProd" required placeholder="Ej: PS5 Slim digital"></label>
+      <label>Seña $ <input id="eSena" inputmode="numeric" placeholder="0"></label>
+      <label>Total $ <input id="eTot" inputmode="numeric" placeholder="0"></label>
+      <label>Fecha <input id="eFecha" type="date"></label>
+      <button class="primary" type="submit">Agregar encargo</button>
+    </form>
+    <label class="check"><input id="eVerTodos" type="checkbox"> Mostrar también los entregados</label>
+    <div id="encList" class="list"></div>
+  </div>
+  <div data-view="mensajes" class="wrap" style="gap:16px" hidden>
+    <p class="note">Textos que mandan seguido por WhatsApp o Instagram. Tocá “Copiar” y pegalo en el chat.</p>
+    <div id="msgList" class="list"></div>
+    <form id="msgForm" class="panel formgrid one">
+      <label>Título <input id="mTit" required placeholder="Ej: Cómo tomamos usados"></label>
+      <label>Texto <textarea id="mTxt" rows="4" required></textarea></label>
+      <button class="primary" type="submit">Agregar mensaje</button>
+    </form>
+  </div>
+  <div data-view="datos" class="wrap" style="gap:16px" hidden>
+    <p class="note">Lo que te piden siempre: alias, horarios, dirección, garantía. Cada dato se copia con un toque.</p>
+    <div id="datList" class="list"></div>
+    <form id="datForm" class="panel formgrid">
+      <label>Dato <input id="dK" required placeholder="Ej: Alias"></label>
+      <label>Valor <input id="dV" required placeholder="Ej: local.juegos.mp"></label>
+      <button class="primary" type="submit">Agregar dato</button>
+    </form>
+  </div>
+  <div class="tools">
+    <span id="msg" class="note" role="status">Cargando…</span>
+    <button id="login" type="button">Entrar como dueño</button>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <form id="f" method="dialog">
+    <h3 id="dlgTitle">Agregar acceso</h3>
+    <label>Nombre <input id="fName" required></label>
+    <label>Link (dirección web) <input id="fUrl" placeholder="https://…"></label>
+    <label>Sección <input id="fCat" list="cats" placeholder="Ej: Ventas"></label>
+    <datalist id="cats"></datalist>
+    <label>Descripción corta <input id="fDesc" placeholder="Para qué se usa"></label>
+    <div class="row">
+      <button id="del" class="left danger" type="button">Borrar</button>
+      <button id="cancel" type="button">Cancelar</button>
+      <button class="primary" type="submit">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+
+
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+// La configuración de Firebase y el Gmail del dueño vienen de config.js (compartido con la calculadora)
+const FIREBASE_CONFIG = window.FIREBASE_CONFIG||{projectId:"COMPLETAR"};
+const OWNER_EMAIL = window.OWNER_EMAIL||"";
+const DEFAULT_CONFIG={
+ accesos:[
+  {n:'iDuo',u:'',c:'Sistema y stock',d:'Precios, stock y ventas'},
+  {n:'Calculadora de cobro',u:'calculadora/',c:'Sistema y stock',d:'Parte de pago + efectivo'},
+  {n:'WhatsApp Web',u:'https://web.whatsapp.com',c:'Clientes',d:'Consultas y pedidos'},
+  {n:'Instagram',u:'https://www.instagram.com',c:'Clientes',d:'Publicaciones y mensajes'},
+  {n:'Mercado Libre',u:'https://www.mercadolibre.com.ar',c:'Ventas',d:'Publicaciones y preguntas'},
+  {n:'Mercado Pago',u:'https://www.mercadopago.com.ar',c:'Ventas',d:'Cobros y movimientos'},
+  {n:'Gmail',u:'https://mail.google.com',c:'Oficina',d:'Correo'},
+  {n:'Google Drive',u:'https://drive.google.com',c:'Oficina',d:'Listas y planillas'}],
+ datos:[{k:'Alias Mercado Pago',v:'(completar)'},{k:'Horarios',v:'(completar)'},{k:'Dirección',v:'(completar)'},{k:'Garantía de usados',v:'(completar)'}],
+ mensajes:[
+  {t:'Cómo tomamos usados',x:'¡Hola! Tomamos juegos y consolas en parte de pago. Mandanos foto y estado del equipo (si tiene caja, joysticks y cables) y te pasamos la cotización. El resto se puede pagar en efectivo o transferencia.'},
+  {t:'Seña para encargos',x:'Para reservarlo te pedimos una seña. Te avisamos apenas llegue y lo retirás abonando el resto.'},
+  {t:'Ya llegó tu pedido',x:'¡Hola! Ya llegó lo que encargaste. Podés pasar a retirarlo en nuestro horario.'}]
+};
+const $=id=>document.getElementById(id);
+const ESTADOS=['Pendiente','Avisado','Entregado'];
+let cfg=structuredClone(DEFAULT_CONFIG), encargos=[], notas=[], owner=false, editIdx=null;
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function initials(n){return n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
+function safeUrl(u){u=u||'';if(/^https:\/\//i.test(u))return u;if(/^[a-z0-9_-]+\/?$/i.test(u))return u;return ''}
+const pesos=n=>'$'+Math.round(n).toLocaleString('es-AR');
+function fechaTxt(f){if(!f)return 'Sin fecha';const [y,m,d]=f.split('-');return `${d}/${m}/${y}`}
+function say(t){$('msg').textContent=t}
+function cleanCfg(v){return {
+  accesos:(Array.isArray(v?.accesos)?v.accesos:[]).filter(x=>x&&x.n).map(x=>({n:String(x.n),u:String(x.u||''),c:String(x.c||'Otros'),d:String(x.d||'')})),
+  datos:(Array.isArray(v?.datos)?v.datos:[]).filter(x=>x&&x.k).map(x=>({k:String(x.k),v:String(x.v||'')})),
+  mensajes:(Array.isArray(v?.mensajes)?v.mensajes:[]).filter(x=>x&&x.t).map(x=>({t:String(x.t),x:String(x.x||'')}))}}
+
+let app,db,auth,ok=false;
+try{if(!window.FIREBASE_CONFIG)throw 0;app=firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();auth=firebase.auth();ok=!!FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId!=='COMPLETAR'}catch(e){ok=false}
+const cfgRef=()=>db.doc('panel/config');
+async function saveCfg(){if(!owner)return;say('Guardando…');
+  try{await cfgRef().set(cfg);say('Guardado.')}catch(e){say('No se pudo guardar: '+(e.code||'error'))}}
+
+function render(){
+  const q=$('q').value.trim().toLowerCase(), items=cfg.accesos;
+  const cats=[...new Set(items.map(i=>i.c||'Otros'))];
+  $('cats').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
+  let html='';
+  for(const c of cats){
+    const list=items.map((it,i)=>({...it,i})).filter(it=>(it.c||'Otros')===c&&(!q||(it.n+' '+it.d).toLowerCase().includes(q)));
+    if(!list.length)continue;
+    html+=`<section><h2>${esc(c)}</h2><div class="grid">`+list.map(it=>{
+      const url=safeUrl(it.u), ext=/^https:/.test(url);
+      const inner=`<span class="badge">${esc(initials(it.n))}</span><span class="t"><b>${esc(it.n)}</b><small>${url?esc(it.d||url.replace(/^https:\/\//,'')):'Falta el link'}</small></span>${owner?`<button class="edit" type="button" data-i="${it.i}">Editar</button>`:''}`;
+      return url?`<a class="tile" href="${esc(url)}"${ext?' target="_blank" rel="noopener"':''}>${inner}</a>`:`<div class="tile nolink">${inner}</div>`;
+    }).join('')+`</div></section>`;
+  }
+  $('sections').innerHTML=html||'<p class="empty">No hay programas que coincidan.</p>';
+  $('notas').innerHTML=notas.length?notas.map(n=>`<li><span>${esc(n.t)}</span><button type="button" data-nota="${esc(n.id)}">Quitar</button></li>`).join(''):'<li class="empty">Nada anotado todavía.</li>';
+  const ver=$('eVerTodos').checked;
+  const enc=encargos.filter(e=>ver||e.e!=='Entregado').sort((a,b)=>(a.f||'9').localeCompare(b.f||'9'));
+  $('encList').innerHTML=enc.length?enc.map(e=>`<div class="item${e.e==='Entregado'?' done':''}"><div class="main"><b>${esc(e.p)}</b><p>${esc(e.c)} · ${fechaTxt(e.f)} · <span class="num">Seña ${pesos(e.s)}${e.tot?` · Resta ${pesos(Math.max(0,e.tot-e.s))}`:''}</span></p></div><div class="acts"><button type="button" class="estado ${esc(e.e)}" data-est="${esc(e.id)}" title="Tocá para cambiar el estado">${esc(e.e)}</button>${owner?`<button type="button" data-delenc="${esc(e.id)}">Borrar</button>`:''}</div></div>`).join(''):'<p class="empty">No hay encargos pendientes. Cargá el primero con el formulario de arriba.</p>';
+  $('msgList').innerHTML=cfg.mensajes.length?cfg.mensajes.map((m,i)=>`<div class="item"><div class="main"><b>${esc(m.t)}</b><p>${esc(m.x)}</p></div><div class="acts"><button type="button" class="primary" data-copy="m${i}">Copiar</button>${owner?`<button type="button" data-delmsg="${i}">Borrar</button>`:''}</div></div>`).join(''):'<p class="empty">Todavía no hay mensajes guardados.</p>';
+  $('datList').innerHTML=cfg.datos.length?cfg.datos.map((d,i)=>`<div class="item"><div class="main"><b>${esc(d.k)}</b><p>${esc(d.v)}</p></div><div class="acts"><button type="button" class="primary" data-copy="d${i}">Copiar</button>${owner?`<button type="button" data-deldat="${i}">Borrar</button>`:''}</div></div>`).join(''):'<p class="empty">Todavía no hay datos cargados.</p>';
+  for(const el of [$('add'),$('toggleEdit'),$('msgForm'),$('datForm')])el.hidden=!owner;
+  $('login').textContent=owner?'Salir del modo dueño':'Entrar como dueño';
+}
+function openDlg(i){
+  editIdx=i;const it=i==null?{n:'',u:'',c:'',d:''}:cfg.accesos[i];
+  $('dlgTitle').textContent=i==null?'Agregar acceso':'Editar acceso';
+  $('fName').value=it.n;$('fUrl').value=it.u;$('fCat').value=it.c;$('fDesc').value=it.d;
+  $('del').hidden=i==null;$('dlg').showModal();
+}
+$('sections').addEventListener('click',e=>{const b=e.target.closest('.edit');if(b){e.preventDefault();e.stopPropagation();openDlg(+b.dataset.i)}});
+$('add').onclick=()=>openDlg(null);
+$('cancel').onclick=()=>$('dlg').close();
+let delArmed=false;
+$('del').onclick=()=>{if(!delArmed){delArmed=true;$('del').textContent='¿Seguro? Tocá de nuevo';return}
+  cfg.accesos.splice(editIdx,1);$('dlg').close();render();saveCfg()};
+$('dlg').addEventListener('close',()=>{delArmed=false;$('del').textContent='Borrar'});
+$('f').addEventListener('submit',e=>{e.preventDefault();
+  let u=$('fUrl').value.trim();if(u&&!/^https?:\/\//i.test(u)&&!/^[a-z0-9_-]+\/?$/i.test(u))u='https://'+u;u=u.replace(/^http:\/\//i,'https://');
+  const it={n:$('fName').value.trim(),u,c:$('fCat').value.trim()||'Otros',d:$('fDesc').value.trim()};
+  if(!it.n)return;
+  if(editIdx==null)cfg.accesos.push(it);else cfg.accesos[editIdx]=it;
+  $('dlg').close();render();saveCfg();
+});
+$('toggleEdit').onclick=()=>{document.body.classList.toggle('editing');$('toggleEdit').textContent=document.body.classList.contains('editing')?'Listo':'Editar'};
+$('q').addEventListener('input',render);
+$('eVerTodos').addEventListener('change',render);
+const armed=new Set();
+function confirmTwice(btn,key,fn){if(!armed.has(key)){armed.add(key);btn.textContent='¿Seguro?';setTimeout(()=>{armed.delete(key);if(btn.isConnected)btn.textContent='Borrar'},3000);return}armed.delete(key);fn()}
+const fail=e=>say('No se pudo guardar: '+(e.code||'error'));
+const ts=()=>firebase.firestore.FieldValue.serverTimestamp();
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;const ds=b.dataset;
+  if(ds.est!=null){const it=encargos.find(x=>x.id===ds.est);if(!it)return;
+    db.doc('panel/config/encargos/'+it.id).update({e:ESTADOS[(ESTADOS.indexOf(it.e)+1)%3],ts:ts()}).catch(fail)}
+  else if(ds.delenc!=null)confirmTwice(b,'e'+ds.delenc,()=>db.doc('panel/config/encargos/'+ds.delenc).delete().catch(fail));
+  else if(ds.nota!=null)db.doc('panel/config/notas/'+ds.nota).delete().catch(fail);
+  else if(ds.delmsg!=null)confirmTwice(b,'m'+ds.delmsg,()=>{cfg.mensajes.splice(+ds.delmsg,1);render();saveCfg()});
+  else if(ds.deldat!=null)confirmTwice(b,'d'+ds.deldat,()=>{cfg.datos.splice(+ds.deldat,1);render();saveCfg()});
+  else if(ds.copy){const t=ds.copy[0]==='m'?cfg.mensajes[+ds.copy.slice(1)].x:cfg.datos[+ds.copy.slice(1)].v;
+    const okc=()=>{b.textContent='Copiado';setTimeout(()=>b.textContent='Copiar',1500)};
+    const sel=()=>{const r=document.createRange();r.selectNodeContents(b.closest('.item').querySelector('p'));getSelection().removeAllRanges();getSelection().addRange(r);b.textContent='Ctrl+C para copiar'};
+    try{navigator.clipboard.writeText(t).then(okc,sel)}catch(_){sel()}}
+});
+const num=v=>+String(v).replace(/[^\d]/g,'')||0;
+$('encForm').addEventListener('submit',e=>{e.preventDefault();
+  db.collection('panel/config/encargos').add({c:$('eCli').value.trim().slice(0,120),p:$('eProd').value.trim().slice(0,120),s:num($('eSena').value),tot:num($('eTot').value),f:$('eFecha').value||'',e:'Pendiente',ts:ts()}).then(()=>e.target.reset(),fail)});
+$('notaForm').addEventListener('submit',e=>{e.preventDefault();const t=$('notaTxt').value.trim().slice(0,300);if(!t)return;
+  db.collection('panel/config/notas').add({t,ts:ts()}).then(()=>{$('notaTxt').value=''},fail)});
+$('msgForm').addEventListener('submit',e=>{e.preventDefault();cfg.mensajes.push({t:$('mTit').value.trim(),x:$('mTxt').value.trim()});e.target.reset();render();saveCfg()});
+$('datForm').addEventListener('submit',e=>{e.preventDefault();cfg.datos.push({k:$('dK').value.trim(),v:$('dV').value.trim()});e.target.reset();render();saveCfg()});
+$('login').onclick=()=>{if(!auth)return;if(owner)auth.signOut();else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>say('No se pudo entrar: '+(e.code||'error')))};
+function route(){const v=(location.hash||'#inicio').slice(1);const k=['inicio','encargos','mensajes','datos'].includes(v)?v:'inicio';
+  document.querySelectorAll('[data-view]').forEach(el=>el.hidden=el.dataset.view!==k);
+  document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===k)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+  $('q').hidden=k!=='inicio'}
+addEventListener('hashchange',route);route();
+render();
+if(!ok){say('Falta completar la configuración de Firebase en el archivo.')}
+else{
+  say('');
+  auth.onAuthStateChanged(u=>{owner=!!(u&&u.emailVerified&&u.email&&u.email.toLowerCase()===OWNER_EMAIL.toLowerCase());
+    if(u&&!owner)say('Esa cuenta no es la del dueño. Podés usar el panel igual sin entrar.');render()});
+  cfgRef().onSnapshot(d=>{if(d.exists)cfg=cleanCfg(d.data());render()},e=>say('No se pudo cargar: '+(e.code||'error')));
+  db.collection('panel/config/encargos').onSnapshot(q=>{encargos=q.docs.map(d=>{const x=d.data();return {id:d.id,c:String(x.c||''),p:String(x.p||''),s:+x.s||0,tot:+x.tot||0,f:String(x.f||''),e:ESTADOS.includes(x.e)?x.e:'Pendiente'}});render()},()=>{});
+  db.collection('panel/config/notas').orderBy('ts').onSnapshot(q=>{notas=q.docs.map(d=>({id:d.id,t:String(d.data().t||'')}));render()},()=>{});
+}
+</script>
+</body>
+</html>
