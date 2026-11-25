@@ -72,6 +72,13 @@ body.editing .tile:not(.add){outline:2px dashed var(--fg);outline-offset:3px;bor
 .tile.sm{min-height:84px;padding:12px 10px;gap:6px}
 .tile.sm svg{width:24px;height:24px}
 .tile.sm b{font-size:.95rem}
+.falt{display:flex;flex-direction:column;gap:10px}
+.faltrow{display:flex;gap:8px;flex-wrap:wrap}
+.faltrow input{flex:1 1 220px;min-width:0}
+.faltrow select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+.faltrow button{font:inherit;font-weight:700;border:none;border-radius:8px;padding:9px 18px;background:#1F5FB0;color:#fff;cursor:pointer}
+.faltrow button:disabled{opacity:.6;cursor:wait}
+#faltMsg{margin:0;font-size:.85rem;color:var(--muted);min-height:1.2em}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -80,6 +87,20 @@ body.editing .tile:not(.add){outline:2px dashed var(--fg);outline-offset:3px;bor
   <div class="brand"><h1>Express <span>Game</span></h1><p>Diversión ilimitada</p></div>
   <div class="stripe" aria-hidden="true"><i style="background:#E51B2A"></i><i style="background:#4897D3"></i><i style="background:#50BBB4"></i><i style="background:#F6A023"></i></div>
   <div id="grid" class="grid"></div>
+  <form id="falt" class="falt" hidden>
+    <h2 class="ghead">Cargar faltante en Trello</h2>
+    <div class="faltrow">
+      <input id="faltTxt" maxlength="150" placeholder="¿Qué falta? Ej: funda iPhone 13" aria-label="Qué falta" required>
+      <select id="faltLista" aria-label="Lista de Trello">
+        <option value="local13">Local 13</option>
+        <option value="local49">Local 49</option>
+        <option value="insumos">Insumos</option>
+        <option value="juegos">Juegos que piden y no hay</option>
+      </select>
+      <button id="faltBtn" type="submit">Cargar</button>
+    </div>
+    <p id="faltMsg" role="status"></p>
+  </form>
   <div class="foot">
     <button id="persona" type="button">Personalizar mi fila</button>
     <button id="reset" type="button" hidden>Volver a la fila del local</button>
@@ -166,6 +187,17 @@ $('persona').onclick=()=>{if(!pmode){if(!mine)mine=accesos.filter(a=>a.g).map(a=
 $('reset').onclick=()=>{mine=null;saveMine();pmode=false;$('persona').textContent='Personalizar mi fila';$('reset').hidden=true;render()};
 $('toggleEdit').onclick=()=>{document.body.classList.toggle('editing');$('toggleEdit').textContent=editing()?'Listo':'Editar accesos';render()};
 
+// Faltantes: dirección de la app de Google Apps Script que carga la tarjeta en Trello
+const FALTANTE_URL='';
+if(FALTANTE_URL){$('falt').hidden=false;
+  try{const l=localStorage.getItem('faltLista');if(l)$('faltLista').value=l}catch(e){}
+  $('falt').addEventListener('submit',async e=>{e.preventDefault();const nombre=$('faltTxt').value.trim();if(!nombre)return;
+    const lista=$('faltLista').value;try{localStorage.setItem('faltLista',lista)}catch(_){}
+    $('faltBtn').disabled=true;$('faltMsg').textContent='Cargando…';
+    try{const r=await fetch(FALTANTE_URL,{method:'POST',body:JSON.stringify({nombre,lista})});const j=await r.json();
+      if(j.ok){$('faltMsg').textContent='Cargado en Trello: '+nombre;$('faltTxt').value=''}else $('faltMsg').textContent='No se pudo cargar. Probá de nuevo.'}
+    catch(_){$('faltMsg').textContent='No se pudo cargar. Revisá la conexión y probá de nuevo.'}
+    $('faltBtn').disabled=false;$('faltTxt').focus()})}
 // Configuración de Firebase y Gmail del dueño: vienen de config.js (compartido con la calculadora)
 const C=window.FIREBASE_CONFIG||{}, OWNER=(window.OWNER_EMAIL||'').toLowerCase();
 const DEFAULT=[{"n": "iDuo", "u": "https://www.iduo.com.ar/Login.html", "d": "", "g": ""}, {"n": "WhatsApp", "u": "https://web.whatsapp.com", "d": "", "g": ""}, {"n": "Gestor de reparaciones", "u": "https://gestor-reparaciones-53630.web.app/", "d": "", "g": ""}, {"n": "Mercado Libre", "u": "https://www.mercadolibre.com.ar/ventas/omni/listado", "d": "Ventas", "g": ""}, {"n": "Calculadora de cobro", "u": "calculadora/", "d": "", "g": ""}, {"n": "Tomar juegos y consolas", "u": "https://docs.google.com/spreadsheets/d/1FUTvPszMVkniL73jPkulTQpTWlQKgM5nNfpqt-5Zgjs/edit", "d": "Precios en parte de pago", "g": ""}, {"n": "Administrador de la página", "u": "https://expressgame4.mitiendanube.com/admin/dashboard", "d": "Pedidos de la página", "g": ""}, {"n": "Página web", "u": "https://www.expressgame.com.ar", "d": "", "g": ""}, {"n": "Juegos de PS2", "u": "https://trello.com/b/nPfK0ANQ/juegos-de-ps2", "d": "", "g": "Trello"}, {"n": "Faltante mercadería", "u": "https://trello.com/b/JvbZEhJj/faltante-mercaderia", "d": "", "g": "Trello"}, {"n": "Datos útiles reparaciones", "u": "https://trello.com/b/hdTUjz3D/datos-utiles-reparaciones", "d": "", "g": "Trello"}];
