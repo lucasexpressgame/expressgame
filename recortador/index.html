@@ -37,6 +37,11 @@
   .bar i{display:block;height:100%;width:0;background:var(--acc)}
   .note{font-size:13px;color:var(--mut)}
   .hide{display:none!important}
+  .modes{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .mode{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px;margin:0;color:var(--ink);cursor:pointer}
+  .mode input{margin-top:3px;accent-color:var(--acc)}
+  .mode b{display:block;font-family:var(--display);letter-spacing:.04em;text-transform:uppercase;font-weight:600;font-size:15px}
+  .mode small{display:block;color:var(--mut);font-size:12.5px;margin-top:2px}
   .strip{position:relative;height:56px;margin-top:12px;border-radius:8px;overflow:hidden;background:#000;touch-action:none;cursor:pointer}
   .frames{display:flex;height:100%}
   .frames img{flex:1;min-width:0;height:100%;object-fit:cover;pointer-events:none}
@@ -83,6 +88,13 @@
     </div>
     <div id="segs" style="margin-top:10px"></div>
 
+    <div class="modes">
+      <label class="mode"><input type="radio" name="mode" value="lossless" checked>
+        <span><b>Sin perder calidad</b><small>Copia el video tal cual. Es rápido, pero el inicio puede correrse 1–2 s hacia atrás.</small></span></label>
+      <label class="mode"><input type="radio" name="mode" value="exact">
+        <span><b>Exacto</b><small>Corta justo donde marcás, pero vuelve a grabar y pierde algo de calidad.</small></span></label>
+    </div>
+
     <div class="row" style="margin-top:12px">
       <button id="go" class="pri">Recortar</button>
       <button id="reset">Elegir otro</button>
@@ -106,7 +118,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const v = $('v'), cv = $('c'), ctx2d = cv.getContext('2d');
-let url = null, outBlob = null, outExt = 'webm', baseName = 'video';
+let curFile = null, url = null, outBlob = null, outExt = 'webm', baseName = 'video';
 let actx = null, adest = null, asrc = null, busy = false;
 
 const fmt = t => { t = Math.max(0, t); const m = Math.floor(t/60), s = (t%60).toFixed(1).padStart(4,'0'); return m+':'+s; };
@@ -114,6 +126,7 @@ const fmt = t => { t = Math.max(0, t); const m = Math.floor(t/60), s = (t%60).to
 function loadFile(f){
   if(!f || !f.type.startsWith('video/')) return;
   if(url) URL.revokeObjectURL(url);
+  curFile = f;
   url = URL.createObjectURL(f);
   baseName = f.name.replace(/\.[^.]+$/,'').slice(0,40) || 'video';
   v.src = url;
@@ -170,9 +183,9 @@ strip.addEventListener('pointerup', () => { strip.dragging = false; });
 
 function upd(src){
   let s = +$('s').value, e = +$('e').value;
-  const gap = 0.2;
-  if(src === 's' && s > e - gap) { s = Math.max(0, e - gap); $('s').value = s; }
-  if(src === 'e' && e < s + gap) { e = Math.min(v.duration, s + gap); $('e').value = e; }
+  const gap = 0.2, d = v.duration;
+  if(src === 's' && s > e - gap) { e = Math.min(d, s + gap); $('e').value = e; if(e - s < gap){ s = Math.max(0, e - gap); $('s').value = s; } }
+  if(src === 'e' && e < s + gap) { s = Math.max(0, e - gap); $('s').value = s; if(e - s < gap){ e = Math.min(d, s + gap); $('e').value = e; } }
   $('sLbl').textContent = fmt(s); $('eLbl').textContent = fmt(e); $('dLbl').textContent = fmt(e - s); updSel();
 }
 $('s').addEventListener('input', () => { upd('s'); v.currentTime = +$('s').value; });
@@ -223,8 +236,85 @@ function pickMime(){
   return c.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
 
+let ff = null;
+const FF_BASE = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
+const FF_CORE = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('No pude descargar el motor de corte.')); document.head.appendChild(s); });
+const blobOf = async (u, t) => { const r = await fetch(u); if(!r.ok) throw new Error('No pude descargar el motor de corte.'); return URL.createObjectURL(new Blob([await r.arrayBuffer()], { type: t })); };
+async function getFF(onMsg){
+  if(ff) return ff;
+  onMsg('Preparando el motor de corte (solo la primera vez, ~30 MB)…');
+  await loadScript(FF_BASE + '/ffmpeg.js');
+  const f = new FFmpegWASM.FFmpeg();
+  await f.load({
+    classWorkerURL: await blobOf(FF_BASE + '/814.ffmpeg.js', 'text/javascript'),
+    coreURL: await blobOf(FF_CORE + '/ffmpeg-core.js', 'text/javascript'),
+    wasmURL: await blobOf(FF_CORE + '/ffmpeg-core.wasm', 'application/wasm')
+  });
+  ff = f; return f;
+}
+async function runLossless(list){
+  const hint = $('hint'), bar = $('prog').firstElementChild;
+  const f = await getFF(m => hint.textContent = m);
+  const ext = /\.webm$/i.test(curFile.name) ? 'webm' : 'mp4';
+  hint.textContent = 'Cortando sin recomprimir…';
+  const buf = new Uint8Array(await curFile.arrayBuffer());
+  const inName = 'in.' + (curFile.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'') || 'mp4');
+  await f.writeFile(inName, buf);
+  const total = list.length + (list.length > 1 ? 1 : 0);
+  let step = 0;
+  const onProg = ({ progress }) => { bar.style.width = Math.min(100, ((step + Math.min(1, Math.max(0, progress))) / total) * 100) + '%'; };
+  f.on('progress', onProg);
+  try{
+    for(let k = 0; k < list.length; k++){
+      const [s, e] = list[k];
+      const code = await f.exec(['-ss', String(s), '-i', inName, '-t', String(e - s), '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-map', '0', 'seg' + k + '.' + ext]);
+      if(code !== 0) throw new Error('No se pudo cortar este video sin recomprimir.');
+      step++;
+    }
+    let outName = 'seg0.' + ext;
+    if(list.length > 1){
+      const txt = list.map((_, k) => "file 'seg" + k + "." + ext + "'").join('\n');
+      await f.writeFile('list.txt', new TextEncoder().encode(txt));
+      const code = await f.exec(['-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', 'joined.' + ext]);
+      if(code !== 0) throw new Error('No se pudieron unir los tramos sin recomprimir.');
+      outName = 'joined.' + ext;
+    }
+    const data = await f.readFile(outName);
+    const names = list.map((_, k) => 'seg' + k + '.' + ext).concat(['joined.' + ext, 'list.txt', inName]);
+    for(const n of names){ try{ await f.deleteFile(n); }catch(_){} }
+    return { blob: new Blob([data.buffer], { type: ext === 'webm' ? 'video/webm' : 'video/mp4' }), ext };
+  } finally { f.off('progress', onProg); }
+}
+function showResult(blob, ext){
+  outExt = ext; outBlob = blob;
+  const ru = URL.createObjectURL(outBlob);
+  const rv = $('rv'); if(rv.dataset.u) URL.revokeObjectURL(rv.dataset.u);
+  rv.src = ru; rv.dataset.u = ru;
+  $('info').textContent = (outBlob.size/1048576).toFixed(1) + ' MB · .' + outExt;
+  $('msg').textContent = '';
+  $('result').classList.remove('hide');
+  $('result').scrollIntoView({behavior:'smooth'});
+}
+
 $('go').onclick = async () => {
   if(busy) return;
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  if(mode === 'lossless'){
+    busy = true; $('go').disabled = true; $('prog').classList.remove('hide');
+    const list = segs.length ? segs.map(x => x.slice()) : [[+$('s').value, +$('e').value]];
+    try{
+      const r = await runLossless(list);
+      showResult(r.blob, r.ext);
+      $('hint').textContent = 'Listo. Recordá: el inicio puede estar un poco antes de lo marcado.';
+    }catch(err){
+      $('hint').textContent = 'No se pudo cortar sin perder calidad: ' + (err && err.message ? err.message : err) + ' Probá con el modo "Exacto".';
+    }finally{
+      busy = false; $('go').disabled = false; $('prog').classList.add('hide'); $('prog').firstElementChild.style.width = '0';
+    }
+    return;
+  }
+  $('hint').textContent = 'El recorte se graba en tiempo real, así que tarda lo que dura el clip. Dejá esta pantalla abierta.';
   if(!window.MediaRecorder || !cv.captureStream){ $('hint').textContent = 'Este navegador no permite recortar acá. Probá con Chrome, Edge o Safari actualizado.'; return; }
   busy = true; $('go').disabled = true; $('prog').classList.remove('hide');
   const bar = $('prog').firstElementChild;
@@ -242,7 +332,7 @@ $('go').onclick = async () => {
     }
     if(actx && actx.state === 'suspended') await actx.resume();
 
-    const scale = Math.min(1, 1280 / v.videoWidth);
+    const scale = Math.min(1, 1920 / v.videoWidth);
     cv.width = Math.round(v.videoWidth * scale) & ~1;
     cv.height = Math.round(v.videoHeight * scale) & ~1;
 
@@ -253,7 +343,7 @@ $('go').onclick = async () => {
     const stream = cv.captureStream(30);
     if(adest) adest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
     const mime = pickMime();
-    const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 5_000_000 } : undefined);
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 12_000_000 } : undefined);
     const chunks = [];
     rec.ondataavailable = ev => { if(ev.data && ev.data.size) chunks.push(ev.data); };
     const done = new Promise(r => rec.onstop = r);
