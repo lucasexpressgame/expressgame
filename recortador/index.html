@@ -143,15 +143,21 @@ v.addEventListener('loadedmetadata', () => {
 });
 function detectQuality(){
   const w = v.videoWidth, h = v.videoHeight;
+  const mb = curFile ? curFile.size / 1048576 : 0;
   const mbps = curFile ? curFile.size * 8 / v.duration / 1e6 : 0;
-  const ok = w <= 1920 && mbps <= 12;
-  const r = document.querySelector('input[name=mode][value=' + (ok ? 'exact' : 'lossless') + ']');
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const limit = mobile ? 250 : 700;
+  const heavy = mb > limit;
+  const ok = !heavy && w <= 1920 && mbps <= 12;
+  const r = document.querySelector('input[name=mode][value=' + ((ok || heavy) ? 'exact' : 'lossless') + ']');
   if(r) r.checked = true;
-  $('detect').textContent = 'Tu video: ' + w + '×' + h + ' · ~' + mbps.toFixed(1) + ' Mbps. ' + (ok
-    ? 'Entra en la calidad del modo Exacto, que casi no se nota y corta justo donde marcás. (Si grabaste a 60 cuadros por segundo, elegí Sin perder calidad.)'
-    : 'Es más pesado de lo que el modo Exacto mantiene, así que conviene Sin perder calidad.');
+  const base = 'Tu video: ' + w + '×' + h + ' · ' + mb.toFixed(0) + ' MB · ~' + mbps.toFixed(1) + ' Mbps. ';
+  $('detect').textContent = base + (heavy
+    ? 'Es muy pesado para "Sin perder calidad" en este dispositivo (se queda sin memoria a partir de unos ' + limit + ' MB), así que dejé marcado Exacto.'
+    : ok
+      ? 'Entra en la calidad del modo Exacto, que casi no se nota y corta justo donde marcás. (Si grabaste a 60 cuadros por segundo, elegí Sin perder calidad.)'
+      : 'Es más pesado de lo que el modo Exacto mantiene, así que conviene Sin perder calidad.');
 }
-v.addEventListener('error', () => { alert; $('hint').textContent = 'No pude leer este video. Probá con otro formato (MP4 o WebM).'; });
 
 const fmtS = t => Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
 let stripTok = 0;
