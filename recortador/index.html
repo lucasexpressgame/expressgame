@@ -88,7 +88,8 @@
     </div>
     <div id="segs" style="margin-top:10px"></div>
 
-    <div class="modes">
+    <p id="detect" class="note" style="margin:14px 0 0"></p>
+    <div class="modes" style="margin-top:8px">
       <label class="mode"><input type="radio" name="mode" value="lossless" checked>
         <span><b>Sin perder calidad</b><small>Copia el video tal cual. Es rápido, pero el inicio puede correrse 1–2 s hacia atrás.</small></span></label>
       <label class="mode"><input type="radio" name="mode" value="exact">
@@ -138,8 +139,18 @@ v.addEventListener('loadedmetadata', () => {
   for(const el of [$('s'),$('e')]){ el.max = d; }
   $('s').value = 0; $('e').value = d;
   $('drop').classList.add('hide'); $('editor').classList.remove('hide');
-  upd(); buildStrip();
+  upd(); buildStrip(); detectQuality();
 });
+function detectQuality(){
+  const w = v.videoWidth, h = v.videoHeight;
+  const mbps = curFile ? curFile.size * 8 / v.duration / 1e6 : 0;
+  const ok = w <= 1920 && mbps <= 12;
+  const r = document.querySelector('input[name=mode][value=' + (ok ? 'exact' : 'lossless') + ']');
+  if(r) r.checked = true;
+  $('detect').textContent = 'Tu video: ' + w + '×' + h + ' · ~' + mbps.toFixed(1) + ' Mbps. ' + (ok
+    ? 'Entra en la calidad del modo Exacto, que casi no se nota y corta justo donde marcás. (Si grabaste a 60 cuadros por segundo, elegí Sin perder calidad.)'
+    : 'Es más pesado de lo que el modo Exacto mantiene, así que conviene Sin perder calidad.');
+}
 v.addEventListener('error', () => { alert; $('hint').textContent = 'No pude leer este video. Probá con otro formato (MP4 o WebM).'; });
 
 const fmtS = t => Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
