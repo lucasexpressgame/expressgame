@@ -29,6 +29,12 @@
   .bar i{display:block;height:100%;width:0;background:var(--acc)}
   .note{font-size:13px;color:var(--mut)}
   .hide{display:none!important}
+  .strip{position:relative;height:56px;margin-top:12px;border-radius:8px;overflow:hidden;background:#000;touch-action:none;cursor:pointer}
+  .frames{display:flex;height:100%}
+  .frames img{flex:1;min-width:0;height:100%;object-fit:cover;pointer-events:none}
+  .sel{position:absolute;top:0;bottom:0;border:3px solid var(--acc);border-radius:6px;background:rgba(42,91,215,.18);pointer-events:none}
+  .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px #0009;pointer-events:none}
+  .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:4px;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -44,6 +50,10 @@
   <section id="editor" class="card hide">
     <video id="v" playsinline controls preload="metadata"></video>
     <canvas id="c" class="hid"></canvas>
+
+    <div id="strip" class="strip"><div id="frames" class="frames"></div><div id="sel" class="sel"></div><div id="ph" class="ph"></div></div>
+    <div id="ticks" class="ticks"></div>
+    <p class="note" style="margin:6px 0 0">Tocá o arrastrá sobre la tira para moverte. Ahora: <span id="nowLbl" class="t">0:00.0</span> de <span id="totLbl" class="t">0:00</span></p>
 
     <label>Inicio: <span id="sLbl" class="t">0:00.0</span></label>
     <input id="s" type="range" min="0" max="1" step="0.1" value="0">
@@ -98,16 +108,55 @@ v.addEventListener('loadedmetadata', () => {
   for(const el of [$('s'),$('e')]){ el.max = d; }
   $('s').value = 0; $('e').value = d;
   $('drop').classList.add('hide'); $('editor').classList.remove('hide');
-  upd();
+  upd(); buildStrip();
 });
 v.addEventListener('error', () => { alert; $('hint').textContent = 'No pude leer este video. Probá con otro formato (MP4 o WebM).'; });
+
+const fmtS = t => Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+let stripTok = 0;
+async function buildStrip(){
+  const tok = ++stripTok, d = v.duration, N = 8;
+  const fr = $('frames'); fr.innerHTML = '';
+  const tk = $('ticks'); tk.innerHTML = '';
+  for(let i=0;i<=N;i++){ const sp = document.createElement('span'); sp.textContent = fmtS(i/N*d); tk.appendChild(sp); }
+  $('totLbl').textContent = fmtS(d);
+  const tv = document.createElement('video');
+  tv.muted = true; tv.preload = 'auto'; tv.src = url;
+  await new Promise(r => { tv.onloadeddata = r; tv.onerror = r; });
+  const c = document.createElement('canvas'), h = 112;
+  c.height = h; c.width = Math.max(2, Math.round(h * (tv.videoWidth||16) / (tv.videoHeight||9)));
+  const g = c.getContext('2d');
+  for(let i=0;i<N;i++){
+    if(tok !== stripTok) return;
+    await new Promise(r => { tv.onseeked = r; tv.currentTime = Math.min(d - 0.05, (i+0.5)/N*d); });
+    g.drawImage(tv, 0, 0, c.width, c.height);
+    const im = new Image(); im.src = c.toDataURL('image/jpeg', 0.6); fr.appendChild(im);
+  }
+  tv.removeAttribute('src'); tv.load();
+}
+function updSel(){
+  const d = v.duration || 1, s = +$('s').value, e = +$('e').value;
+  $('sel').style.left = (s/d*100)+'%'; $('sel').style.width = ((e-s)/d*100)+'%';
+  updPh();
+}
+function updPh(){
+  const d = v.duration || 1;
+  $('ph').style.left = 'calc('+(v.currentTime/d*100)+'% - 1px)';
+  $('nowLbl').textContent = fmt(v.currentTime);
+}
+v.addEventListener('timeupdate', updPh); v.addEventListener('seeked', updPh);
+const strip = $('strip');
+const seekFromEv = ev => { const r = strip.getBoundingClientRect(); const x = Math.min(1, Math.max(0, (ev.clientX - r.left)/r.width)); v.currentTime = x * v.duration; };
+strip.addEventListener('pointerdown', ev => { strip.setPointerCapture(ev.pointerId); v.pause(); seekFromEv(ev); strip.dragging = true; });
+strip.addEventListener('pointermove', ev => { if(strip.dragging) seekFromEv(ev); });
+strip.addEventListener('pointerup', () => { strip.dragging = false; });
 
 function upd(src){
   let s = +$('s').value, e = +$('e').value;
   const gap = 0.2;
   if(src === 's' && s > e - gap) { s = Math.max(0, e - gap); $('s').value = s; }
   if(src === 'e' && e < s + gap) { e = Math.min(v.duration, s + gap); $('e').value = e; }
-  $('sLbl').textContent = fmt(s); $('eLbl').textContent = fmt(e); $('dLbl').textContent = fmt(e - s);
+  $('sLbl').textContent = fmt(s); $('eLbl').textContent = fmt(e); $('dLbl').textContent = fmt(e - s); updSel();
 }
 $('s').addEventListener('input', () => { upd('s'); v.currentTime = +$('s').value; });
 $('e').addEventListener('input', () => { upd('e'); v.currentTime = +$('e').value; });
