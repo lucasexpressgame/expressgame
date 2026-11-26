@@ -37,6 +37,12 @@
   .bar i{display:block;height:100%;width:0;background:var(--acc)}
   .note{font-size:13px;color:var(--mut)}
   .hide{display:none!important}
+  .vwrap{position:relative;overflow:hidden;border-radius:10px;background:#000}
+  .vwrap video{display:block;border-radius:0}
+  .cbox{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);touch-action:none;cursor:move}
+  .chandle{position:absolute;right:-2px;bottom:-2px;width:30px;height:30px;background:#fff;border-radius:8px 0 0 0;cursor:nwse-resize;touch-action:none}
+  .chip{padding:8px 12px;font-size:14px}
+  .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
   .modes{margin-top:14px;display:flex;flex-direction:column;gap:8px}
   .mode{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px;margin:0;color:var(--ink);cursor:pointer}
   .mode input{margin-top:3px;accent-color:var(--acc)}
@@ -64,7 +70,17 @@
   </div>
 
   <section id="editor" class="card hide">
-    <video id="v" playsinline controls preload="metadata"></video>
+    <div id="vwrap" class="vwrap"><video id="v" playsinline preload="metadata"></video><div id="cbox" class="cbox hide"><div id="chandle" class="chandle"></div></div></div>
+    <div class="row" style="margin-top:10px"><button id="pp">⏯ Reproducir / pausar</button></div>
+    <label>Formato de salida</label>
+    <div id="fmts" class="row">
+      <button class="chip on" data-f="orig">Original</button>
+      <button class="chip" data-f="9:16">9:16 Historia</button>
+      <button class="chip" data-f="4:5">4:5</button>
+      <button class="chip" data-f="1:1">1:1</button>
+      <button class="chip" data-f="free">Libre</button>
+    </div>
+    <p id="fmtNote" class="note" style="margin:6px 0 0"></p>
     <canvas id="c" class="hid"></canvas>
 
     <div id="strip" class="strip"><div id="frames" class="frames"></div><div id="sel" class="sel"></div><div id="ph" class="ph"></div></div>
@@ -139,7 +155,7 @@ v.addEventListener('loadedmetadata', () => {
   for(const el of [$('s'),$('e')]){ el.max = d; }
   $('s').value = 0; $('e').value = d;
   $('drop').classList.add('hide'); $('editor').classList.remove('hide');
-  upd(); buildStrip(); detectQuality();
+  upd(); buildStrip(); detectQuality(); setFormat('orig');
 });
 function detectQuality(){
   const w = v.videoWidth, h = v.videoHeight;
@@ -225,6 +241,83 @@ $('reset').onclick = () => {
   v.pause(); $('editor').classList.add('hide'); $('result').classList.add('hide');
   drop.classList.remove('hide'); file.value = ''; segs = []; renderSegs();
 };
+
+
+// ---- recorte de imagen (formato de salida) ----
+let crop = null, fmtSel = 'orig';
+const cbox = $('cbox');
+const RATIOS = { '9:16':[9,16,1080,1920], '4:5':[4,5,1080,1350], '1:1':[1,1,1080,1080] };
+function drawFrame(){
+  if(crop) ctx2d.drawImage(v, crop.x, crop.y, crop.w, crop.h, 0, 0, cv.width, cv.height);
+  else ctx2d.drawImage(v, 0, 0, cv.width, cv.height);
+}
+function outSize(){
+  if(RATIOS[fmtSel]) return { w: RATIOS[fmtSel][2], h: RATIOS[fmtSel][3] };
+  const s = Math.min(1, 1920 / Math.max(crop.w, crop.h));
+  return { w: Math.max(2, Math.round(crop.w * s) & ~1), h: Math.max(2, Math.round(crop.h * s) & ~1) };
+}
+function dispRect(){
+  const cw = v.clientWidth, ch = v.clientHeight, sc = Math.min(cw / v.videoWidth, ch / v.videoHeight);
+  return { sc, ox: (cw - v.videoWidth*sc)/2, oy: (ch - v.videoHeight*sc)/2 };
+}
+function placeBox(){
+  if(!crop || !v.videoWidth){ cbox.classList.add('hide'); return; }
+  cbox.classList.remove('hide');
+  const d = dispRect();
+  cbox.style.left = (d.ox + crop.x*d.sc) + 'px'; cbox.style.top = (d.oy + crop.y*d.sc) + 'px';
+  cbox.style.width = (crop.w*d.sc) + 'px'; cbox.style.height = (crop.h*d.sc) + 'px';
+}
+function fmtNote(){
+  const n = $('fmtNote');
+  if(!crop){ n.textContent = ''; return; }
+  const o = outSize();
+  n.textContent = 'Salida: ' + o.w + '×' + o.h + '. Arrastrá el recuadro para elegir qué parte queda' + (fmtSel==='free' ? ' y la esquina blanca para cambiar el tamaño' : ' y la esquina blanca para acercar o alejar') + '. Con este formato se usa el modo Exacto (pierde algo de calidad y tarda lo que dura el clip).';
+}
+function setFormat(f){
+  fmtSel = f;
+  document.querySelectorAll('#fmts .chip').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+  const W = v.videoWidth, H = v.videoHeight;
+  const lossless = document.querySelector('input[name=mode][value=lossless]');
+  const exact = document.querySelector('input[name=mode][value=exact]');
+  if(f === 'orig' || !W){ crop = null; lossless.disabled = false; }
+  else {
+    let cw, ch;
+    if(RATIOS[f]){ const r = RATIOS[f][0] / RATIOS[f][1]; if(W / H > r){ ch = H; cw = H * r; } else { cw = W; ch = W / r; } }
+    else { cw = W * 0.8; ch = H * 0.8; }
+    crop = { x: (W - cw)/2, y: (H - ch)/2, w: cw, h: ch };
+    exact.checked = true; lossless.disabled = true;
+  }
+  placeBox(); fmtNote();
+}
+document.querySelectorAll('#fmts .chip').forEach(b => b.onclick = () => setFormat(b.dataset.f));
+window.addEventListener('resize', placeBox);
+let drag = null;
+cbox.addEventListener('pointerdown', ev => {
+  ev.preventDefault(); cbox.setPointerCapture(ev.pointerId);
+  drag = { mode: ev.target.id === 'chandle' ? 'resize' : 'move', px: ev.clientX, py: ev.clientY, c: { ...crop } };
+});
+cbox.addEventListener('pointermove', ev => {
+  if(!drag) return;
+  const d = dispRect(), W = v.videoWidth, H = v.videoHeight;
+  const dx = (ev.clientX - drag.px) / d.sc, dy = (ev.clientY - drag.py) / d.sc, c0 = drag.c;
+  if(drag.mode === 'move'){
+    crop.x = Math.min(W - c0.w, Math.max(0, c0.x + dx));
+    crop.y = Math.min(H - c0.h, Math.max(0, c0.y + dy));
+  } else if(RATIOS[fmtSel]){
+    const r = RATIOS[fmtSel][0] / RATIOS[fmtSel][1];
+    let w = Math.max(64, Math.min(W - c0.x, c0.w + dx)), h = w / r;
+    if(c0.y + h > H){ h = H - c0.y; w = h * r; }
+    crop.w = w; crop.h = h;
+  } else {
+    crop.w = Math.max(64, Math.min(W - c0.x, c0.w + dx));
+    crop.h = Math.max(64, Math.min(H - c0.y, c0.h + dy));
+  }
+  placeBox(); fmtNote();
+});
+const endDrag = () => { drag = null; };
+cbox.addEventListener('pointerup', endDrag); cbox.addEventListener('pointercancel', endDrag);
+$('pp').onclick = () => { if(v.paused) v.play(); else v.pause(); };
+v.addEventListener('click', () => { if(v.paused) v.play(); else v.pause(); });
 
 let segs = [];
 function renderSegs(){
@@ -313,7 +406,7 @@ function showResult(blob, ext){
 
 $('go').onclick = async () => {
   if(busy) return;
-  const mode = document.querySelector('input[name=mode]:checked').value;
+  const mode = crop ? 'exact' : document.querySelector('input[name=mode]:checked').value;
   if(mode === 'lossless'){
     busy = true; $('go').disabled = true; $('prog').classList.remove('hide');
     const list = segs.length ? segs.map(x => x.slice()) : [[+$('s').value, +$('e').value]];
@@ -346,13 +439,16 @@ $('go').onclick = async () => {
     }
     if(actx && actx.state === 'suspended') await actx.resume();
 
-    const scale = Math.min(1, 1920 / v.videoWidth);
-    cv.width = Math.round(v.videoWidth * scale) & ~1;
-    cv.height = Math.round(v.videoHeight * scale) & ~1;
+    if(crop){ const o = outSize(); cv.width = o.w; cv.height = o.h; }
+    else {
+      const scale = Math.min(1, 1920 / v.videoWidth);
+      cv.width = Math.round(v.videoWidth * scale) & ~1;
+      cv.height = Math.round(v.videoHeight * scale) & ~1;
+    }
 
     v.pause();
     await seekTo(list[0][0]);
-    ctx2d.drawImage(v, 0, 0, cv.width, cv.height);
+    drawFrame();
 
     const stream = cv.captureStream(30);
     if(adest) adest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
@@ -365,11 +461,11 @@ $('go').onclick = async () => {
     rec.start(250);
     for(let k = 0; k < list.length; k++){
       const [s, e] = list[k];
-      if(k > 0){ rec.pause(); await seekTo(s); ctx2d.drawImage(v, 0, 0, cv.width, cv.height); rec.resume(); }
+      if(k > 0){ rec.pause(); await seekTo(s); drawFrame(); rec.resume(); }
       await v.play();
       await new Promise(res => {
         const loop = () => {
-          ctx2d.drawImage(v, 0, 0, cv.width, cv.height);
+          drawFrame();
           const p = (doneT + v.currentTime - s) / total;
           bar.style.width = Math.min(100, Math.max(0, p*100)) + '%';
           if(v.currentTime >= e || v.ended || v.paused){ res(); return; }
