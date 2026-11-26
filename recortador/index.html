@@ -3,14 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Recortador de video</title>
+<title>Recortador de video · Express Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap">
 <style>
-  :root { color-scheme: light dark; --bg:#f6f6f4; --card:#fff; --ink:#1c1c1a; --mut:#6b6b66; --acc:#2a5bd7; --line:#e2e2dd; }
+  :root { color-scheme: light dark; --bg:#f6f6f4; --card:#fff; --ink:#1c1c1a; --mut:#6b6b66; --acc:#2a5bd7; --line:#e2e2dd; --display:'Oswald',Impact,sans-serif; --body:'Montserrat',system-ui,sans-serif; }
   @media (prefers-color-scheme: dark){ :root{ --bg:#161615; --card:#222220; --ink:#f0f0ec; --mut:#9b9b94; --acc:#6b95ff; --line:#33332f; } }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;padding:16px;display:flex;justify-content:center}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);padding:16px;display:flex;justify-content:center}
   main{width:100%;max-width:640px;display:flex;flex-direction:column;gap:14px}
-  h1{font-size:20px;margin:4px 0 0}
+  header{text-align:center;padding:6px 0 2px}
+  h1{font-family:var(--display);font-weight:700;font-size:34px;letter-spacing:.06em;text-transform:uppercase;line-height:1;margin:0}
+  .sub{font-family:var(--display);font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);font-size:14px;margin-top:6px}
+  footer{text-align:center;font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-size:12px;padding:6px 0 14px}
+  button{font-family:var(--body)}
+  button.pri{font-family:var(--display);letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+  .drop b{font-family:var(--display);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
   .drop{border:2px dashed var(--line);border-radius:14px;padding:28px 14px;text-align:center;color:var(--mut);cursor:pointer}
   .drop.over{border-color:var(--acc);color:var(--acc)}
@@ -35,11 +43,14 @@
   .sel{position:absolute;top:0;bottom:0;border:3px solid var(--acc);border-radius:6px;background:rgba(42,91,215,.18);pointer-events:none}
   .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px #0009;pointer-events:none}
   .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:4px;font-variant-numeric:tabular-nums}
+  .seg{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;padding:6px 8px;margin-top:6px;font-size:14px}
+  .seg span{flex:1;font-variant-numeric:tabular-nums}
+  .seg button{padding:4px 10px}
 </style>
 </head>
 <body>
 <main>
-  <h1>Recortador de video</h1>
+  <header><h1>Express Game</h1><div class="sub">Recortador de video</div></header>
 
   <div id="drop" class="drop" tabindex="0">
     <b>Tocá para elegir un video</b>
@@ -68,6 +79,11 @@
     <p class="note" style="margin:10px 0 0">Duración del recorte: <span id="dLbl" class="t">0:00.0</span></p>
 
     <div class="row" style="margin-top:12px">
+      <button id="add">＋ Agregar este tramo a la lista</button>
+    </div>
+    <div id="segs" style="margin-top:10px"></div>
+
+    <div class="row" style="margin-top:12px">
       <button id="go" class="pri">Recortar</button>
       <button id="reset">Elegir otro</button>
     </div>
@@ -84,6 +100,7 @@
     </div>
     <p class="note" id="msg" style="margin:8px 0 0"></p>
   </section>
+  <footer>Diseño by Express Game</footer>
 </main>
 
 <script>
@@ -179,8 +196,27 @@ file.onchange = () => loadFile(file.files[0]);
 drop.addEventListener('drop', ev => loadFile(ev.dataTransfer.files[0]));
 $('reset').onclick = () => {
   v.pause(); $('editor').classList.add('hide'); $('result').classList.add('hide');
-  drop.classList.remove('hide'); file.value = '';
+  drop.classList.remove('hide'); file.value = ''; segs = []; renderSegs();
 };
+
+let segs = [];
+function renderSegs(){
+  const box = $('segs'); box.innerHTML = '';
+  segs.forEach((x,i) => {
+    const d = document.createElement('div'); d.className = 'seg';
+    const sp = document.createElement('span');
+    sp.textContent = (i+1)+'. '+fmt(x[0])+' → '+fmt(x[1])+'  ('+fmt(x[1]-x[0])+')';
+    d.appendChild(sp);
+    const mk = (txt, fn, dis) => { const b = document.createElement('button'); b.textContent = txt; b.disabled = !!dis; b.onclick = fn; d.appendChild(b); };
+    mk('↑', () => { [segs[i-1],segs[i]] = [segs[i],segs[i-1]]; renderSegs(); }, i===0);
+    mk('↓', () => { [segs[i+1],segs[i]] = [segs[i],segs[i+1]]; renderSegs(); }, i===segs.length-1);
+    mk('✕', () => { segs.splice(i,1); renderSegs(); });
+    box.appendChild(d);
+  });
+  $('go').textContent = segs.length > 1 ? 'Unir '+segs.length+' tramos' : 'Recortar';
+}
+$('add').onclick = () => { segs.push([+$('s').value, +$('e').value]); renderSegs(); };
+const seekTo = t => new Promise(r => { const h = () => { v.removeEventListener('seeked', h); r(); }; v.addEventListener('seeked', h); v.currentTime = t; });
 
 function pickMime(){
   const c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
@@ -192,9 +228,10 @@ $('go').onclick = async () => {
   if(!window.MediaRecorder || !cv.captureStream){ $('hint').textContent = 'Este navegador no permite recortar acá. Probá con Chrome, Edge o Safari actualizado.'; return; }
   busy = true; $('go').disabled = true; $('prog').classList.remove('hide');
   const bar = $('prog').firstElementChild;
-  const s = +$('s').value, e = +$('e').value;
+  const list = segs.length ? segs.map(x => x.slice()) : [[+$('s').value, +$('e').value]];
+  const total = list.reduce((a, x) => a + x[1] - x[0], 0);
+  let doneT = 0;
   try{
-    // audio graph (once)
     if(!actx){
       try{
         actx = new (window.AudioContext||window.webkitAudioContext)();
@@ -210,7 +247,7 @@ $('go').onclick = async () => {
     cv.height = Math.round(v.videoHeight * scale) & ~1;
 
     v.pause();
-    await new Promise(r => { const h = () => { v.removeEventListener('seeked', h); r(); }; v.addEventListener('seeked', h); v.currentTime = s; });
+    await seekTo(list[0][0]);
     ctx2d.drawImage(v, 0, 0, cv.width, cv.height);
 
     const stream = cv.captureStream(30);
@@ -222,20 +259,23 @@ $('go').onclick = async () => {
     const done = new Promise(r => rec.onstop = r);
 
     rec.start(250);
-    await v.play();
-    let raf;
-    await new Promise(res => {
-      const loop = () => {
-        ctx2d.drawImage(v, 0, 0, cv.width, cv.height);
-        const p = (v.currentTime - s) / (e - s);
-        bar.style.width = Math.min(100, Math.max(0, p*100)) + '%';
-        if(v.currentTime >= e || v.ended || v.paused){ res(); return; }
-        raf = requestAnimationFrame(loop);
-      };
-      loop();
-    });
-    cancelAnimationFrame(raf);
-    v.pause();
+    for(let k = 0; k < list.length; k++){
+      const [s, e] = list[k];
+      if(k > 0){ rec.pause(); await seekTo(s); ctx2d.drawImage(v, 0, 0, cv.width, cv.height); rec.resume(); }
+      await v.play();
+      await new Promise(res => {
+        const loop = () => {
+          ctx2d.drawImage(v, 0, 0, cv.width, cv.height);
+          const p = (doneT + v.currentTime - s) / total;
+          bar.style.width = Math.min(100, Math.max(0, p*100)) + '%';
+          if(v.currentTime >= e || v.ended || v.paused){ res(); return; }
+          requestAnimationFrame(loop);
+        };
+        loop();
+      });
+      v.pause();
+      doneT += e - s;
+    }
     rec.stop();
     await done;
     stream.getTracks().forEach(t => t.stop());
